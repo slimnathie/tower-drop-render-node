@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type BlockKind = "normal" | "gold" | "steel" | "bomb";
 type Block = { x: number; y: number; width: number; colour: string; kind: BlockKind; number: number };
-type FallingBlock = Block & { targetY: number; velocityX: number };
+type FallingBlock = Block & {
+  targetY: number;
+  velocityX: number;
+  ropeCutX: number;
+  ropeCutY: number;
+  ropeSnapped: boolean;
+};
 
 const CANVAS_W = 720;
 const CANVAS_H = 820;
@@ -14,6 +20,8 @@ const COLOURS = ["#ffc536", "#ff6b45", "#27d3a2", "#5ba7ff", "#b980ff"];
 const DROP_GAP = BLOCK_H * 3;
 const BOMB_CHANCE = 0.14;
 const BOMB_FUSE_SECONDS = 3;
+const BOMB_SIZE = 76;
+const MAX_ROPE_SWINGS = 5;
 
 const blockKind = (number: number): BlockKind =>
   number > 0 && number % 20 === 0 ? "steel" : number > 0 && number % 10 === 0 ? "gold" : "normal";
@@ -26,6 +34,7 @@ export default function Home() {
   const currentRef = useRef<Block | null>(null);
   const fallingRef = useRef<FallingBlock | null>(null);
   const directionRef = useRef(1);
+  const ropeSwingsRef = useRef(0);
   const speedRef = useRef(230);
   const wobbleLevelRef = useRef(0);
   const gameTimeRef = useRef(0);
@@ -88,6 +97,58 @@ export default function Home() {
     const drawBlock = (block: Block, isMoving = false, offsetX = 0) => {
       const y = block.y + camera;
       const x = block.x + offsetX;
+      if (block.kind === "bomb") {
+        const radius = BOMB_SIZE / 2;
+        const centreX = x + radius;
+        const centreY = y + radius;
+        const bombFill = ctx.createRadialGradient(
+          centreX - radius * .38,
+          centreY - radius * .42,
+          radius * .08,
+          centreX,
+          centreY,
+          radius,
+        );
+        bombFill.addColorStop(0, "#66707a");
+        bombFill.addColorStop(.24, "#20262b");
+        bombFill.addColorStop(.72, "#090b0d");
+        bombFill.addColorStop(1, "#000");
+        ctx.fillStyle = "rgba(8, 14, 35, .32)";
+        ctx.beginPath();
+        ctx.ellipse(centreX + 7, centreY + radius + 7, radius * .8, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = bombFill;
+        ctx.beginPath();
+        ctx.arc(centreX, centreY, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,.28)";
+        ctx.beginPath();
+        ctx.ellipse(centreX - 13, centreY - 15, 9, 14, -.7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#15191c";
+        ctx.fillRect(centreX - 10, y - 5, 20, 13);
+        ctx.strokeStyle = "#30251c";
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(centreX, y - 3);
+        ctx.quadraticCurveTo(centreX + 14, y - 19, centreX + 6, y - 33);
+        ctx.stroke();
+        if (!fallingRef.current) {
+          const fuse = Math.max(0, (bombFuseRef.current ?? gameTimeRef.current) - gameTimeRef.current);
+          ctx.fillStyle = fuse < 1 ? "#fff36a" : "#ff7a1a";
+          ctx.beginPath();
+          ctx.arc(centreX + 6, y - 37, 9 + Math.sin(gameTimeRef.current * 18) * 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#fff";
+          ctx.font = "1000 20px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(fuse.toFixed(1), centreX, y - 51);
+        }
+        return;
+      }
       ctx.fillStyle = "rgba(8, 14, 35, .25)";
       ctx.fillRect(x + 8, y + 10, block.width, BLOCK_H);
       const fill = block.kind === "gold"
@@ -104,7 +165,7 @@ export default function Home() {
         fill.addColorStop(.5, "#87949d");
         fill.addColorStop(1, "#cbd5da");
       }
-      ctx.fillStyle = block.kind === "bomb" ? "#d92d38" : fill ?? block.colour;
+      ctx.fillStyle = fill ?? block.colour;
       ctx.fillRect(x, y, block.width, BLOCK_H);
       ctx.fillStyle = "rgba(255,255,255,.28)";
       ctx.fillRect(x, y, block.width, 9);
@@ -126,27 +187,6 @@ export default function Home() {
         ctx.font = "900 18px Arial";
         ctx.textAlign = "center";
         ctx.fillText("+10", x + block.width / 2, y + 36);
-      } else if (block.kind === "bomb") {
-        ctx.fillStyle = "#341019";
-        ctx.font = "1000 21px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("BOMB", x + block.width / 2, y + 37);
-        if (!fallingRef.current) {
-          const fuse = Math.max(0, (bombFuseRef.current ?? gameTimeRef.current) - gameTimeRef.current);
-          ctx.strokeStyle = "#2a1216";
-          ctx.lineWidth = 7;
-          ctx.beginPath();
-          ctx.moveTo(x + block.width / 2, y);
-          ctx.quadraticCurveTo(x + block.width / 2 + 12, y - 18, x + block.width / 2 + 4, y - 31);
-          ctx.stroke();
-          ctx.fillStyle = fuse < 1 ? "#fff36a" : "#ff8a29";
-          ctx.beginPath();
-          ctx.arc(x + block.width / 2 + 4, y - 35, 9 + Math.sin(gameTimeRef.current * 18) * 3, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "#fff";
-          ctx.font = "1000 20px Arial";
-          ctx.fillText(fuse.toFixed(1), x + block.width / 2, y - 48);
-        }
       }
       if (!isMoving && block.width > 45) {
         ctx.fillStyle = "rgba(22,27,61,.26)";
@@ -165,12 +205,111 @@ export default function Home() {
     if (moving) {
       const movingY = moving.y + camera;
       if (!fallingRef.current) {
-        ctx.strokeStyle = "#f3cd65";
-        ctx.lineWidth = 5;
+        const swings = ropeSwingsRef.current;
+        const ropeStartX = CANVAS_W / 2;
+        const ropeEndX = moving.x + moving.width / 2;
+        const ropeEndY = movingY - (moving.kind === "bomb" ? 8 : 0);
+        const ropeWidth = Math.max(5, 13 - swings * 1.65);
+
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#5c351d";
+        ctx.lineWidth = ropeWidth + 4;
+        ctx.beginPath();
+        ctx.moveTo(ropeStartX, 0);
+        ctx.lineTo(ropeEndX, ropeEndY);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#c78b45";
+        ctx.lineWidth = ropeWidth;
+        ctx.beginPath();
+        ctx.moveTo(ropeStartX, 0);
+        ctx.lineTo(ropeEndX, ropeEndY);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255, 216, 142, .7)";
+        ctx.lineWidth = Math.max(1.5, ropeWidth * .2);
+        ctx.setLineDash([7, 9]);
+        ctx.beginPath();
+        ctx.moveTo(ropeStartX - 2, 0);
+        ctx.lineTo(ropeEndX - 2, ropeEndY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (swings > 0) {
+          const dx = ropeEndX - ropeStartX;
+          const dy = ropeEndY;
+          const ropeLength = Math.hypot(dx, dy) || 1;
+          const normalX = -dy / ropeLength;
+          const normalY = dx / ropeLength;
+          ctx.strokeStyle = "#e0ae69";
+          ctx.lineWidth = 2;
+          for (let fibre = 0; fibre < swings * 3; fibre++) {
+            const t = 0.3 + ((fibre * 0.173 + swings * 0.11) % 0.62);
+            const x = ropeStartX + dx * t;
+            const y = dy * t;
+            const side = fibre % 2 === 0 ? 1 : -1;
+            const length = 8 + swings * 3 + (fibre % 3) * 4;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(
+              x + normalX * side * length * .55 + dx / ropeLength * 4,
+              y + normalY * side * length * .55 + dy / ropeLength * 4,
+              x + normalX * side * length,
+              y + normalY * side * length,
+            );
+            ctx.stroke();
+          }
+        }
+        ctx.lineCap = "butt";
+
+        ctx.fillStyle = "#ffcf39";
+        ctx.fillRect(CANVAS_W / 2 - 105, 0, 210, 16);
+      } else {
+        const falling = fallingRef.current;
+        const cutY = falling.ropeCutY + camera;
+        const cutColour = falling.ropeSnapped ? "#b57b3e" : "#d09a55";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#5c351d";
+        ctx.lineWidth = 12;
         ctx.beginPath();
         ctx.moveTo(CANVAS_W / 2, 0);
-        ctx.lineTo(moving.x + moving.width / 2, movingY);
+        ctx.lineTo(falling.ropeCutX, cutY - 11);
         ctx.stroke();
+        ctx.strokeStyle = "#c78b45";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(CANVAS_W / 2, 0);
+        ctx.lineTo(falling.ropeCutX, cutY - 11);
+        ctx.stroke();
+
+        ctx.strokeStyle = cutColour;
+        ctx.lineWidth = 2;
+        for (let fibre = -2; fibre <= 2; fibre++) {
+          ctx.beginPath();
+          ctx.moveTo(falling.ropeCutX + fibre * 2, cutY - 13);
+          ctx.lineTo(falling.ropeCutX + fibre * 4, cutY + 2 + Math.abs(fibre) * 2);
+          ctx.stroke();
+        }
+
+        const attachedX = falling.x + falling.width / 2;
+        ctx.strokeStyle = "#5c351d";
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(attachedX, movingY - 14);
+        ctx.lineTo(attachedX, movingY);
+        ctx.stroke();
+        ctx.strokeStyle = "#e0ae69";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(attachedX - 3, movingY - 14);
+        ctx.lineTo(attachedX - 8, movingY - 24);
+        ctx.moveTo(attachedX, movingY - 14);
+        ctx.lineTo(attachedX + 1, movingY - 26);
+        ctx.moveTo(attachedX + 3, movingY - 14);
+        ctx.lineTo(attachedX + 9, movingY - 22);
+        ctx.stroke();
+        ctx.lineCap = "butt";
+
         ctx.fillStyle = "#ffcf39";
         ctx.fillRect(CANVAS_W / 2 - 105, 0, 210, 16);
       }
@@ -198,6 +337,7 @@ export default function Home() {
     };
     fallingRef.current = null;
     directionRef.current = 1;
+    ropeSwingsRef.current = 0;
     speedRef.current = 230;
     wobbleLevelRef.current = 0;
     gameTimeRef.current = 0;
@@ -249,11 +389,12 @@ export default function Home() {
     currentRef.current = {
       x: directionRef.current > 0 ? 18 : CANVAS_W - 18 - previous.width,
       y: previous.y - DROP_GAP,
-      width: previous.width,
-      colour: shouldBomb ? "#d92d38" : COLOURS[number % COLOURS.length],
+      width: shouldBomb ? BOMB_SIZE : previous.width,
+      colour: shouldBomb ? "#090b0d" : COLOURS[number % COLOURS.length],
       kind,
       number,
     };
+    ropeSwingsRef.current = 0;
     directionRef.current *= -1;
   }, []);
 
@@ -312,6 +453,9 @@ export default function Home() {
         ? blocksRef.current[0].y + BLOCK_H * 2
         : blocksRef.current.at(-1)!.y - BLOCK_H,
       velocityX: directionRef.current * speedRef.current * 0.42,
+      ropeCutX: moving.x + moving.width / 2,
+      ropeCutY: moving.y,
+      ropeSnapped: ropeSwingsRef.current >= MAX_ROPE_SWINGS,
     };
     currentRef.current = null;
   }, []);
@@ -323,13 +467,24 @@ export default function Home() {
       gameTimeRef.current += delta;
       const moving = currentRef.current;
       if (playingRef.current && moving) {
-        moving.x += directionRef.current * speedRef.current * delta;
+        const swingSpeed = moving.kind === "bomb" ? speedRef.current * 2 : speedRef.current;
+        moving.x += directionRef.current * swingSpeed * delta;
         if (moving.x <= 18) {
           moving.x = 18;
-          directionRef.current = 1;
+          if (directionRef.current < 0) {
+            directionRef.current = 1;
+            ropeSwingsRef.current += 1;
+          }
         } else if (moving.x + moving.width >= CANVAS_W - 18) {
           moving.x = CANVAS_W - 18 - moving.width;
-          directionRef.current = -1;
+          if (directionRef.current > 0) {
+            directionRef.current = -1;
+            ropeSwingsRef.current += 1;
+          }
+        }
+        if (ropeSwingsRef.current >= MAX_ROPE_SWINGS) {
+          showCallout("ROPE SNAPPED!", 850);
+          drop();
         }
         if (moving.kind === "bomb" && bombFuseRef.current !== null && gameTimeRef.current >= bombFuseRef.current) {
           drop();
@@ -343,24 +498,36 @@ export default function Home() {
         if (falling.kind === "bomb") {
           const wobbleAmount = Math.min(18, Math.max(0, wobbleLevelRef.current - 4) * 0.75);
           const towerOffset = Math.sin(gameTimeRef.current * 0.95) * wobbleAmount;
-          const hit = blocksRef.current.some((block, index, blocks) => {
+          const hitIndex = blocksRef.current.findIndex((block, index, blocks) => {
             const heightFactor = blocks.length <= 1 ? 0 : index / (blocks.length - 1);
             const blockX = block.x + towerOffset * heightFactor;
-            return falling.y + BLOCK_H >= block.y &&
+            const bombCentreX = falling.x + BOMB_SIZE / 2;
+            const bombCentreY = falling.y + BOMB_SIZE / 2;
+            const nearestX = Math.max(blockX, Math.min(bombCentreX, blockX + block.width));
+            const nearestY = Math.max(block.y, Math.min(bombCentreY, block.y + BLOCK_H));
+            const dx = bombCentreX - nearestX;
+            const dy = bombCentreY - nearestY;
+            return falling.y + BOMB_SIZE >= block.y &&
               falling.y <= block.y + BLOCK_H &&
-              falling.x < blockX + block.width &&
-              falling.x + falling.width > blockX;
+              dx * dx + dy * dy <= (BOMB_SIZE / 2) ** 2;
           });
-          if (hit) {
+          if (hitIndex >= 0) {
             const bombNumber = falling.number;
             fallingRef.current = null;
-            const removable = Math.min(5, Math.max(0, blocksRef.current.length - 1));
-            if (removable > 0) blocksRef.current.splice(-removable, removable);
-            const nextScore = Math.max(0, scoreRef.current - removable);
-            scoreRef.current = nextScore;
-            setScore(nextScore);
-            wobbleLevelRef.current = Math.max(0, wobbleLevelRef.current - removable);
-            showCallout(`BOOM! -${removable} BLOCKS · -${removable} POINTS`, 1300);
+            const hitBlock = blocksRef.current[hitIndex];
+            const heightFactor = blocksRef.current.length <= 1 ? 0 : hitIndex / (blocksRef.current.length - 1);
+            const visualX = hitBlock.x + towerOffset * heightFactor;
+            const cutStart = Math.max(visualX, falling.x);
+            const cutEnd = Math.min(visualX + hitBlock.width, falling.x + BOMB_SIZE);
+            const leftWidth = Math.max(0, cutStart - visualX);
+            const rightWidth = Math.max(0, visualX + hitBlock.width - cutEnd);
+            if (rightWidth > leftWidth) {
+              hitBlock.x += hitBlock.width - rightWidth;
+              hitBlock.width = rightWidth;
+            } else {
+              hitBlock.width = leftWidth;
+            }
+            showCallout("BOOM! TOWER CHOPPED!", 1300);
             createNextBlock(blocksRef.current.at(-1)!, bombNumber, false);
           } else if (falling.y >= falling.targetY) {
             const bombNumber = falling.number;
@@ -465,9 +632,10 @@ export default function Home() {
           </div>
           <ul className="rules">
             <li><b>TIME THE DROP</b><span>The block keeps moving sideways as it falls.</span></li>
+            <li><b>WATCH THE ROPE</b><span>It frays on every swing and snaps automatically on the fifth.</span></li>
             <li><b>PERFECT = +5</b><span>Golden tenth blocks score +10, or +20 when perfect.</span></li>
             <li><b>STEEL STEADIES</b><span>Every twentieth block halves the tower wobble.</span></li>
-            <li><b>AVOID BOMBS</b><span>Make bomb boxes miss or lose up to five blocks and one point per block.</span></li>
+            <li><b>AVOID BOMBS</b><span>Black bombs swing twice as fast. Any contact chops away the part of the brick they hit.</span></li>
           </ul>
           <div className="how-to">
             <span className="mouse-icon" aria-hidden="true">↓</span>
