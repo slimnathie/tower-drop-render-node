@@ -26,6 +26,27 @@ const MAX_ROPE_SWINGS = 5;
 const PERFECT_STREAK_TARGET = 5;
 const PERFECT_WIDTH_BONUS = 28;
 const WATER_RISE_PER_SWING = BLOCK_H / 5;
+const BASE_SWING_SPEED = 230;
+
+const LEVELS = [
+  { name: "LEVEL 1", threshold: 0, waterSpeed: 1, brickBonus: 0, swingSpeed: 1 },
+  { name: "LEVEL 2", threshold: 20, waterSpeed: 1.5, brickBonus: 0.10, swingSpeed: 1 },
+  { name: "LEVEL 3", threshold: 40, waterSpeed: 2, brickBonus: 0.11, swingSpeed: 2 },
+  { name: "LEVEL 4", threshold: 50, waterSpeed: 2.5, brickBonus: 0.12, swingSpeed: 2 },
+  { name: "LEVEL 5", threshold: 80, waterSpeed: 3, brickBonus: 0.13, swingSpeed: 2 },
+  { name: "LEVEL 6", threshold: 100, waterSpeed: 3.5, brickBonus: 0.14, swingSpeed: 3 },
+  { name: "LEVEL 7", threshold: 150, waterSpeed: 4, brickBonus: 0.15, swingSpeed: 3 },
+  { name: "LEVEL 8", threshold: 200, waterSpeed: 4.5, brickBonus: 0.16, swingSpeed: 4 },
+  { name: "LEVEL 9", threshold: 250, waterSpeed: 4.5, brickBonus: 0.17, swingSpeed: 4 },
+  { name: "INSANE LEVEL", threshold: 300, waterSpeed: 5, brickBonus: 0.20, swingSpeed: 5 },
+] as const;
+
+const levelForScore = (score: number) => {
+  for (let index = LEVELS.length - 1; index >= 0; index -= 1) {
+    if (score >= LEVELS[index].threshold) return index;
+  }
+  return 0;
+};
 
 const bombSpeedDetails = {
   2: { label: "DOUBLE SPEED", bonus: 2 },
@@ -45,7 +66,8 @@ export default function Home() {
   const fallingRef = useRef<FallingBlock | null>(null);
   const directionRef = useRef(1);
   const ropeSwingsRef = useRef(0);
-  const speedRef = useRef(230);
+  const speedRef = useRef(BASE_SWING_SPEED);
+  const levelRef = useRef(0);
   const wobbleLevelRef = useRef(0);
   const gameTimeRef = useRef(0);
   const bombFuseRef = useRef<number | null>(null);
@@ -61,6 +83,7 @@ export default function Home() {
   const [callout, setCallout] = useState<string | null>(null);
   const [bombWarning, setBombWarning] = useState(false);
   const [bombSpeedLabel, setBombSpeedLabel] = useState<string | null>(null);
+  const [level, setLevel] = useState(0);
 
   useEffect(() => {
     setBest(Number(localStorage.getItem("tower-drop-best") ?? 0));
@@ -379,7 +402,8 @@ export default function Home() {
     fallingRef.current = null;
     directionRef.current = 1;
     ropeSwingsRef.current = 0;
-    speedRef.current = 230;
+    speedRef.current = BASE_SWING_SPEED;
+    levelRef.current = 0;
     wobbleLevelRef.current = 0;
     gameTimeRef.current = 0;
     playingRef.current = true;
@@ -394,6 +418,7 @@ export default function Home() {
     perfectStreakRef.current = 0;
     waterYRef.current = CANVAS_H;
     setBombSpeedLabel(null);
+    setLevel(0);
     setStatus("playing");
   }, []);
 
@@ -435,10 +460,14 @@ export default function Home() {
       setBombSpeedLabel(null);
     }
     setBombWarning(shouldBomb);
+    const levelDetails = LEVELS[levelRef.current];
+    const nextWidth = shouldBomb
+      ? BOMB_SIZE
+      : Math.min(BASE_W, previous.width * (1 + levelDetails.brickBonus));
     currentRef.current = {
-      x: directionRef.current > 0 ? 18 : CANVAS_W - 18 - previous.width,
+      x: directionRef.current > 0 ? 18 : CANVAS_W - 18 - nextWidth,
       y: previous.y - DROP_GAP,
-      width: shouldBomb ? BOMB_SIZE : previous.width,
+      width: nextWidth,
       colour: shouldBomb ? "#090b0d" : COLOURS[number % COLOURS.length],
       kind,
       number,
@@ -493,15 +522,21 @@ export default function Home() {
     const nextScore = scoreRef.current + earned;
     scoreRef.current = nextScore;
     setScore(nextScore);
-    if (streakReward) {
-      perfectStreakRef.current = 0;
+    const nextLevel = levelForScore(nextScore);
+    const levelChanged = nextLevel !== levelRef.current;
+    if (streakReward) perfectStreakRef.current = 0;
+    if (levelChanged) {
+      levelRef.current = nextLevel;
+      setLevel(nextLevel);
+      speedRef.current = BASE_SWING_SPEED * LEVELS[nextLevel].swingSpeed;
+      showCallout(`${LEVELS[nextLevel].name}!`, 1500);
+    } else if (streakReward) {
       showCallout(`5 PERFECTS! BLOCK WIDENED`, 1300);
     } else {
       showCallout(isPerfect ? `PERFECT +${earned}` : `+${earned}`);
     }
     wobbleLevelRef.current += 1;
     if (moving.kind === "steel") wobbleLevelRef.current *= 0.5;
-    speedRef.current = Math.min(500, 230 + nextNumber * 13);
     createNextBlock(landed, nextNumber);
   }, [createNextBlock, showCallout]);
 
@@ -539,14 +574,14 @@ export default function Home() {
           if (directionRef.current < 0) {
             directionRef.current = 1;
             ropeSwingsRef.current += 1;
-            waterYRef.current -= WATER_RISE_PER_SWING;
+            waterYRef.current -= WATER_RISE_PER_SWING * LEVELS[levelRef.current].waterSpeed;
           }
         } else if (moving.x + moving.width >= CANVAS_W - 18) {
           moving.x = CANVAS_W - 18 - moving.width;
           if (directionRef.current > 0) {
             directionRef.current = -1;
             ropeSwingsRef.current += 1;
-            waterYRef.current -= WATER_RISE_PER_SWING;
+            waterYRef.current -= WATER_RISE_PER_SWING * LEVELS[levelRef.current].waterSpeed;
           }
         }
         if (ropeSwingsRef.current >= MAX_ROPE_SWINGS) {
@@ -618,8 +653,16 @@ export default function Home() {
             const nextScore = scoreRef.current + details.bonus;
             scoreRef.current = nextScore;
             setScore(nextScore);
+            const nextLevel = levelForScore(nextScore);
+            if (nextLevel !== levelRef.current) {
+              levelRef.current = nextLevel;
+              setLevel(nextLevel);
+              speedRef.current = BASE_SWING_SPEED * LEVELS[nextLevel].swingSpeed;
+              showCallout(`${LEVELS[nextLevel].name}!`, 1500);
+            } else {
+              showCallout(`SAFE MISS +${details.bonus}`, 1000);
+            }
             fallingRef.current = null;
-            showCallout(`SAFE MISS +${details.bonus}`, 1000);
             setBombSpeedLabel(null);
             createNextBlock(blocksRef.current.at(-1)!, bombNumber, false);
           }
@@ -657,6 +700,7 @@ export default function Home() {
         <div className="mini-stats" aria-label="Current game statistics">
           <span>SCORE <b>{score}</b></span>
           <span>BEST <b>{Math.max(best, score)}</b></span>
+          <span>LEVEL <b>{level === LEVELS.length - 1 ? "INSANE" : level + 1}</b></span>
         </div>
       </header>
 
@@ -728,7 +772,8 @@ export default function Home() {
             <li><b>STEEL STEADIES</b><span>Every twentieth block halves the tower wobble.</span></li>
             <li><b>AVOID BOMBS</b><span>Bombs randomly swing at 2×, 3× or 4× speed. A safe miss earns +2, +3 or +10.</span></li>
             <li><b>PERFECT STREAK</b><span>Five perfect drops in a row widen the top block and give you more room.</span></li>
-            <li><b>BEAT THE SEA</b><span>It rises one brick every five swings. Drop quickly or the water will reach the top.</span></li>
+            <li><b>BEAT THE SEA</b><span>It starts at one brick every five swings, then rises faster at higher levels.</span></li>
+            <li><b>LEVEL UP</b><span>Higher scores raise the water and swing speed, but also give you wider bricks.</span></li>
           </ul>
           <div className="how-to">
             <span className="mouse-icon" aria-hidden="true">↓</span>

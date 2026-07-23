@@ -11,7 +11,9 @@ browser.
 - Five consecutive perfect drops widen the top block
 - Bombs randomly swing at double, triple or 4x "insane" speed
 - Safe bomb misses award +2, +3 or +10 depending on speed
-- A rising sea advances one block-height every five swings
+- Ten score-based levels progressively increase the water and swing speeds
+- Higher levels grant 10–20% extra width to each new brick
+- At level 1, the sea advances one block-height every five swings
 - The run ends if the water reaches the top of the screen
 
 ## Run locally
