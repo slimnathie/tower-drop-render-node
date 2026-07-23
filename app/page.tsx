@@ -356,8 +356,11 @@ export default function Home() {
             fallingRef.current = null;
             const removable = Math.min(5, Math.max(0, blocksRef.current.length - 1));
             if (removable > 0) blocksRef.current.splice(-removable, removable);
+            const nextScore = Math.max(0, scoreRef.current - removable);
+            scoreRef.current = nextScore;
+            setScore(nextScore);
             wobbleLevelRef.current = Math.max(0, wobbleLevelRef.current - removable);
-            showCallout(`BOOM! -${removable} BLOCKS`, 1100);
+            showCallout(`BOOM! -${removable} BLOCKS · -${removable} POINTS`, 1300);
             createNextBlock(blocksRef.current.at(-1)!, bombNumber, false);
           } else if (falling.y >= falling.targetY) {
             const bombNumber = falling.number;
@@ -464,7 +467,7 @@ export default function Home() {
             <li><b>TIME THE DROP</b><span>The block keeps moving sideways as it falls.</span></li>
             <li><b>PERFECT = +5</b><span>Golden tenth blocks score +10, or +20 when perfect.</span></li>
             <li><b>STEEL STEADIES</b><span>Every twentieth block halves the tower wobble.</span></li>
-            <li><b>AVOID BOMBS</b><span>Make bomb boxes miss or lose up to five blocks.</span></li>
+            <li><b>AVOID BOMBS</b><span>Make bomb boxes miss or lose up to five blocks and one point per block.</span></li>
           </ul>
           <div className="how-to">
             <span className="mouse-icon" aria-hidden="true">↓</span>
