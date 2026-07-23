@@ -49,11 +49,11 @@ button { cursor: pointer; }
 .canvas-wrap { position: relative; max-width: 720px; margin: 0 auto; border: 4px solid var(--ink); background: #202959; box-shadow: 10px 10px 0 var(--ink); overflow: hidden; aspect-ratio: 720 / 820; }
 canvas { width: 100%; height: 100%; display: block; touch-action: manipulation; }
 
-.game-overlay { position: absolute; inset: 0; padding: 11% 8%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: linear-gradient(rgba(20,27,61,.18), rgba(20,27,61,.6)); color: white; }
+.game-overlay { position: absolute; z-index: 4; inset: 0; padding: 11% 8%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: linear-gradient(rgba(20,27,61,.18), rgba(20,27,61,.6)); color: white; }
 .game-overlay .eyebrow, .game-guide .eyebrow { margin: 0 0 14px; color: var(--yellow); font-weight: 900; font-size: 12px; letter-spacing: .22em; }
 .game-overlay h1, .game-overlay h2 { margin: 0; font-size: clamp(44px, 7vw, 82px); line-height: .87; letter-spacing: -.075em; font-weight: 1000; text-shadow: 5px 5px 0 rgba(12,16,37,.6); }
 .game-overlay p:not(.eyebrow):not(.submitted) { max-width: 490px; margin: 22px 0; line-height: 1.55; font-size: 16px; color: #f6f2e8; }
-.game-overlay > button { border: 3px solid var(--ink); padding: 16px 22px; min-width: 235px; background: var(--yellow); color: var(--ink); font-weight: 950; box-shadow: 5px 5px 0 var(--ink); letter-spacing: .04em; transition: transform .15s, box-shadow .15s; }
+.game-overlay > button { position: relative; z-index: 5; border: 3px solid var(--ink); padding: 16px 22px; min-width: 235px; background: var(--yellow); color: var(--ink); font-weight: 950; box-shadow: 5px 5px 0 var(--ink); letter-spacing: .04em; transition: transform .15s, box-shadow .15s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; user-select: none; }
 .game-overlay > button:hover { transform: translate(3px,3px); box-shadow: 2px 2px 0 var(--ink); }
 .game-overlay small { margin-top: 18px; opacity: .75; font-size: 11px; text-transform: uppercase; letter-spacing: .12em; }
 .game-overlay.over { background: rgba(20,27,61,.88); }
