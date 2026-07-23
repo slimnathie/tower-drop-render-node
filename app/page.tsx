@@ -34,11 +34,11 @@ const LEVELS = [
   { name: "LEVEL 3", threshold: 40, waterSpeed: 2, brickBonus: 0.11, swingSpeed: 2 },
   { name: "LEVEL 4", threshold: 50, waterSpeed: 2.5, brickBonus: 0.12, swingSpeed: 2 },
   { name: "LEVEL 5", threshold: 80, waterSpeed: 3, brickBonus: 0.13, swingSpeed: 2 },
-  { name: "LEVEL 6", threshold: 100, waterSpeed: 3.5, brickBonus: 0.14, swingSpeed: 3 },
-  { name: "LEVEL 7", threshold: 150, waterSpeed: 4, brickBonus: 0.15, swingSpeed: 3 },
-  { name: "LEVEL 8", threshold: 200, waterSpeed: 4.5, brickBonus: 0.16, swingSpeed: 4 },
-  { name: "LEVEL 9", threshold: 250, waterSpeed: 4.5, brickBonus: 0.17, swingSpeed: 4 },
-  { name: "INSANE LEVEL", threshold: 300, waterSpeed: 5, brickBonus: 0.20, swingSpeed: 5 },
+  { name: "LEVEL 6", threshold: 100, waterSpeed: 3, brickBonus: 0.14, swingSpeed: 3 },
+  { name: "LEVEL 7", threshold: 150, waterSpeed: 3.5, brickBonus: 0.15, swingSpeed: 3 },
+  { name: "LEVEL 8", threshold: 200, waterSpeed: 3.5, brickBonus: 0.16, swingSpeed: 4 },
+  { name: "LEVEL 9", threshold: 250, waterSpeed: 3.5, brickBonus: 0.17, swingSpeed: 4 },
+  { name: "INSANE LEVEL", threshold: 300, waterSpeed: 4, brickBonus: 0.20, swingSpeed: 5 },
 ] as const;
 
 const levelForScore = (score: number) => {
@@ -75,6 +75,7 @@ export default function Home() {
   const bombSpeedRef = useRef<2 | 3 | 4>(2);
   const perfectStreakRef = useRef(0);
   const waterYRef = useRef(CANVAS_H);
+  const frozenSwingsRef = useRef(0);
   const playingRef = useRef(false);
   const scoreRef = useRef(0);
   const [score, setScore] = useState(0);
@@ -84,6 +85,7 @@ export default function Home() {
   const [bombWarning, setBombWarning] = useState(false);
   const [bombSpeedLabel, setBombSpeedLabel] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
+  const [frozenSwings, setFrozenSwings] = useState(0);
 
   useEffect(() => {
     setBest(Number(localStorage.getItem("tower-drop-best") ?? 0));
@@ -133,21 +135,36 @@ export default function Home() {
 
     const waterTop = waterYRef.current + camera;
     if (waterTop < CANVAS_H) {
+      const isFrozen = frozenSwingsRef.current > 0;
       const water = ctx.createLinearGradient(0, waterTop, 0, CANVAS_H);
-      water.addColorStop(0, "rgba(68, 224, 255, .84)");
-      water.addColorStop(.2, "rgba(28, 151, 220, .8)");
-      water.addColorStop(1, "rgba(8, 55, 130, .92)");
+      water.addColorStop(0, isFrozen ? "rgba(220, 253, 255, .96)" : "rgba(68, 224, 255, .84)");
+      water.addColorStop(.2, isFrozen ? "rgba(125, 218, 244, .9)" : "rgba(28, 151, 220, .8)");
+      water.addColorStop(1, isFrozen ? "rgba(35, 112, 184, .94)" : "rgba(8, 55, 130, .92)");
       ctx.fillStyle = water;
       ctx.fillRect(0, waterTop, CANVAS_W, CANVAS_H - waterTop);
-      ctx.strokeStyle = "#b9fbff";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      for (let x = -18; x <= CANVAS_W + 18; x += 18) {
-        const waveY = waterTop + Math.sin(x * .045 + gameTimeRef.current * 3.2) * 5;
-        if (x === -18) ctx.moveTo(x, waveY);
-        else ctx.lineTo(x, waveY);
+      if (isFrozen) {
+        ctx.fillStyle = "rgba(235, 254, 255, .95)";
+        ctx.fillRect(0, waterTop, CANVAS_W, 13);
+        ctx.strokeStyle = "#75d9f1";
+        ctx.lineWidth = 3;
+        for (let x = 15; x < CANVAS_W; x += 46) {
+          ctx.beginPath();
+          ctx.moveTo(x, waterTop + 2);
+          ctx.lineTo(x + 12, waterTop + 10);
+          ctx.lineTo(x + 25, waterTop + 3);
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = "#b9fbff";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        for (let x = -18; x <= CANVAS_W + 18; x += 18) {
+          const waveY = waterTop + Math.sin(x * .045 + gameTimeRef.current * 3.2) * 5;
+          if (x === -18) ctx.moveTo(x, waveY);
+          else ctx.lineTo(x, waveY);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
       ctx.fillStyle = "rgba(255,255,255,.62)";
       for (let bubble = 0; bubble < 7; bubble++) {
         const bx = (bubble * 113 + gameTimeRef.current * (11 + bubble)) % CANVAS_W;
@@ -417,6 +434,8 @@ export default function Home() {
     bombSpeedRef.current = 2;
     perfectStreakRef.current = 0;
     waterYRef.current = CANVAS_H;
+    frozenSwingsRef.current = 0;
+    setFrozenSwings(0);
     setBombSpeedLabel(null);
     setLevel(0);
     setStatus("playing");
@@ -500,7 +519,8 @@ export default function Home() {
 
     const isPerfect = Math.abs(moving.x - previousX) < 5;
     perfectStreakRef.current = isPerfect ? perfectStreakRef.current + 1 : 0;
-    const streakReward = perfectStreakRef.current >= PERFECT_STREAK_TARGET;
+    const streakReward = perfectStreakRef.current === PERFECT_STREAK_TARGET;
+    const freezesWater = perfectStreakRef.current >= PERFECT_STREAK_TARGET;
     const normalLandedWidth = isPerfect ? previous.width : overlap;
     const landedWidth = streakReward
       ? Math.min(BASE_W, normalLandedWidth + PERFECT_WIDTH_BONUS)
@@ -524,14 +544,20 @@ export default function Home() {
     setScore(nextScore);
     const nextLevel = levelForScore(nextScore);
     const levelChanged = nextLevel !== levelRef.current;
-    if (streakReward) perfectStreakRef.current = 0;
+    if (freezesWater) {
+      frozenSwingsRef.current = 3;
+      setFrozenSwings(3);
+    }
     if (levelChanged) {
       levelRef.current = nextLevel;
       setLevel(nextLevel);
       speedRef.current = BASE_SWING_SPEED * LEVELS[nextLevel].swingSpeed;
       showCallout(`${LEVELS[nextLevel].name}!`, 1500);
-    } else if (streakReward) {
-      showCallout(`5 PERFECTS! BLOCK WIDENED`, 1300);
+    } else if (freezesWater) {
+      showCallout(
+        streakReward ? "5 PERFECTS! WATER FROZEN + BLOCK WIDENED" : "PERFECT! FREEZE RESET TO 3",
+        1500,
+      );
     } else {
       showCallout(isPerfect ? `PERFECT +${earned}` : `+${earned}`);
     }
@@ -574,14 +600,24 @@ export default function Home() {
           if (directionRef.current < 0) {
             directionRef.current = 1;
             ropeSwingsRef.current += 1;
-            waterYRef.current -= WATER_RISE_PER_SWING * LEVELS[levelRef.current].waterSpeed;
+            if (frozenSwingsRef.current > 0) {
+              frozenSwingsRef.current -= 1;
+              setFrozenSwings(frozenSwingsRef.current);
+            } else {
+              waterYRef.current -= WATER_RISE_PER_SWING * LEVELS[levelRef.current].waterSpeed;
+            }
           }
         } else if (moving.x + moving.width >= CANVAS_W - 18) {
           moving.x = CANVAS_W - 18 - moving.width;
           if (directionRef.current > 0) {
             directionRef.current = -1;
             ropeSwingsRef.current += 1;
-            waterYRef.current -= WATER_RISE_PER_SWING * LEVELS[levelRef.current].waterSpeed;
+            if (frozenSwingsRef.current > 0) {
+              frozenSwingsRef.current -= 1;
+              setFrozenSwings(frozenSwingsRef.current);
+            } else {
+              waterYRef.current -= WATER_RISE_PER_SWING * LEVELS[levelRef.current].waterSpeed;
+            }
           }
         }
         if (ropeSwingsRef.current >= MAX_ROPE_SWINGS) {
@@ -718,6 +754,9 @@ export default function Home() {
               }}
             />
             {callout && <div className="perfect-callout">{callout}</div>}
+            {status === "playing" && frozenSwings > 0 && (
+              <div className="freeze-counter">❄ WATER FROZEN · {frozenSwings} SWING{frozenSwings === 1 ? "" : "S"}</div>
+            )}
             {status === "playing" && bombWarning && (
               <div className="bomb-warning">
                 <strong>{bombSpeedLabel}</strong>
@@ -771,7 +810,7 @@ export default function Home() {
             <li><b>PERFECT = +5</b><span>Golden tenth blocks score +10, or +20 when perfect.</span></li>
             <li><b>STEEL STEADIES</b><span>Every twentieth block halves the tower wobble.</span></li>
             <li><b>AVOID BOMBS</b><span>Bombs randomly swing at 2×, 3× or 4× speed. A safe miss earns +2, +3 or +10.</span></li>
-            <li><b>PERFECT STREAK</b><span>Five perfect drops in a row widen the top block and give you more room.</span></li>
+            <li><b>PERFECT STREAK</b><span>Five perfects widen the block and freeze the sea for three swings. Every further perfect resets the freeze to three.</span></li>
             <li><b>BEAT THE SEA</b><span>It starts at one brick every five swings, then rises faster at higher levels.</span></li>
             <li><b>LEVEL UP</b><span>Higher scores raise the water and swing speed, but also give you wider bricks.</span></li>
           </ul>
