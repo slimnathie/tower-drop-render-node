@@ -10,6 +10,7 @@ type FallingBlock = Block & {
   ropeCutX: number;
   ropeCutY: number;
   ropeSnapped: boolean;
+  bombSpeed: 1 | 2 | 3 | 4;
 };
 
 const CANVAS_W = 720;
@@ -22,6 +23,15 @@ const BOMB_CHANCE = 0.14;
 const BOMB_FUSE_SECONDS = 3;
 const BOMB_SIZE = 76;
 const MAX_ROPE_SWINGS = 5;
+const PERFECT_STREAK_TARGET = 5;
+const PERFECT_WIDTH_BONUS = 28;
+const WATER_RISE_PER_SWING = BLOCK_H / 5;
+
+const bombSpeedDetails = {
+  2: { label: "DOUBLE SPEED", bonus: 2 },
+  3: { label: "TRIPLE SPEED", bonus: 3 },
+  4: { label: "INSANE SPEED", bonus: 10 },
+} as const;
 
 const blockKind = (number: number): BlockKind =>
   number > 0 && number % 20 === 0 ? "steel" : number > 0 && number % 10 === 0 ? "gold" : "normal";
@@ -40,6 +50,9 @@ export default function Home() {
   const gameTimeRef = useRef(0);
   const bombFuseRef = useRef<number | null>(null);
   const lastBombNumberRef = useRef(-10);
+  const bombSpeedRef = useRef<2 | 3 | 4>(2);
+  const perfectStreakRef = useRef(0);
+  const waterYRef = useRef(CANVAS_H);
   const playingRef = useRef(false);
   const scoreRef = useRef(0);
   const [score, setScore] = useState(0);
@@ -47,6 +60,7 @@ export default function Home() {
   const [status, setStatus] = useState<"ready" | "playing" | "over">("ready");
   const [callout, setCallout] = useState<string | null>(null);
   const [bombWarning, setBombWarning] = useState(false);
+  const [bombSpeedLabel, setBombSpeedLabel] = useState<string | null>(null);
 
   useEffect(() => {
     setBest(Number(localStorage.getItem("tower-drop-best") ?? 0));
@@ -92,6 +106,33 @@ export default function Home() {
         ctx.fillRect(x + 34, wy, 7, 11);
       }
       ctx.fillStyle = "#17213f";
+    }
+
+    const waterTop = waterYRef.current + camera;
+    if (waterTop < CANVAS_H) {
+      const water = ctx.createLinearGradient(0, waterTop, 0, CANVAS_H);
+      water.addColorStop(0, "rgba(68, 224, 255, .84)");
+      water.addColorStop(.2, "rgba(28, 151, 220, .8)");
+      water.addColorStop(1, "rgba(8, 55, 130, .92)");
+      ctx.fillStyle = water;
+      ctx.fillRect(0, waterTop, CANVAS_W, CANVAS_H - waterTop);
+      ctx.strokeStyle = "#b9fbff";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      for (let x = -18; x <= CANVAS_W + 18; x += 18) {
+        const waveY = waterTop + Math.sin(x * .045 + gameTimeRef.current * 3.2) * 5;
+        if (x === -18) ctx.moveTo(x, waveY);
+        else ctx.lineTo(x, waveY);
+      }
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,.62)";
+      for (let bubble = 0; bubble < 7; bubble++) {
+        const bx = (bubble * 113 + gameTimeRef.current * (11 + bubble)) % CANVAS_W;
+        const by = waterTop + 28 + ((bubble * 47) % Math.max(30, CANVAS_H - waterTop - 30));
+        ctx.beginPath();
+        ctx.arc(bx, by, 3 + bubble % 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
     const drawBlock = (block: Block, isMoving = false, offsetX = 0) => {
@@ -349,6 +390,10 @@ export default function Home() {
     setBombWarning(false);
     bombFuseRef.current = null;
     lastBombNumberRef.current = -10;
+    bombSpeedRef.current = 2;
+    perfectStreakRef.current = 0;
+    waterYRef.current = CANVAS_H;
+    setBombSpeedLabel(null);
     setStatus("playing");
   }, []);
 
@@ -381,9 +426,13 @@ export default function Home() {
     const kind: BlockKind = shouldBomb ? "bomb" : blockKind(number);
     if (shouldBomb) {
       lastBombNumberRef.current = number;
+      const speeds = [2, 3, 4] as const;
+      bombSpeedRef.current = speeds[Math.floor(Math.random() * speeds.length)];
       bombFuseRef.current = gameTimeRef.current + BOMB_FUSE_SECONDS;
+      setBombSpeedLabel(bombSpeedDetails[bombSpeedRef.current].label);
     } else {
       bombFuseRef.current = null;
+      setBombSpeedLabel(null);
     }
     setBombWarning(shouldBomb);
     currentRef.current = {
@@ -421,10 +470,18 @@ export default function Home() {
     }
 
     const isPerfect = Math.abs(moving.x - previousX) < 5;
+    perfectStreakRef.current = isPerfect ? perfectStreakRef.current + 1 : 0;
+    const streakReward = perfectStreakRef.current >= PERFECT_STREAK_TARGET;
+    const normalLandedWidth = isPerfect ? previous.width : overlap;
+    const landedWidth = streakReward
+      ? Math.min(BASE_W, normalLandedWidth + PERFECT_WIDTH_BONUS)
+      : normalLandedWidth;
+    const normalLandedX = isPerfect ? previousX : overlapStart;
     const landed: Block = {
-      x: (isPerfect ? previousX : overlapStart) - Math.sin(gameTimeRef.current * 0.95) * wobbleAmount,
+      x: normalLandedX - (landedWidth - normalLandedWidth) / 2 -
+        Math.sin(gameTimeRef.current * 0.95) * wobbleAmount,
       y: previous.y - BLOCK_H,
-      width: isPerfect ? previous.width : overlap,
+      width: landedWidth,
       colour: moving.colour,
       kind: moving.kind,
       number: moving.number,
@@ -436,7 +493,12 @@ export default function Home() {
     const nextScore = scoreRef.current + earned;
     scoreRef.current = nextScore;
     setScore(nextScore);
-    showCallout(isPerfect ? `PERFECT +${earned}` : `+${earned}`);
+    if (streakReward) {
+      perfectStreakRef.current = 0;
+      showCallout(`5 PERFECTS! BLOCK WIDENED`, 1300);
+    } else {
+      showCallout(isPerfect ? `PERFECT +${earned}` : `+${earned}`);
+    }
     wobbleLevelRef.current += 1;
     if (moving.kind === "steel") wobbleLevelRef.current *= 0.5;
     speedRef.current = Math.min(500, 230 + nextNumber * 13);
@@ -456,6 +518,7 @@ export default function Home() {
       ropeCutX: moving.x + moving.width / 2,
       ropeCutY: moving.y,
       ropeSnapped: ropeSwingsRef.current >= MAX_ROPE_SWINGS,
+      bombSpeed: moving.kind === "bomb" ? bombSpeedRef.current : 1,
     };
     currentRef.current = null;
   }, []);
@@ -467,19 +530,23 @@ export default function Home() {
       gameTimeRef.current += delta;
       const moving = currentRef.current;
       if (playingRef.current && moving) {
-        const swingSpeed = moving.kind === "bomb" ? speedRef.current * 2 : speedRef.current;
+        const swingSpeed = moving.kind === "bomb"
+          ? speedRef.current * bombSpeedRef.current
+          : speedRef.current;
         moving.x += directionRef.current * swingSpeed * delta;
         if (moving.x <= 18) {
           moving.x = 18;
           if (directionRef.current < 0) {
             directionRef.current = 1;
             ropeSwingsRef.current += 1;
+            waterYRef.current -= WATER_RISE_PER_SWING;
           }
         } else if (moving.x + moving.width >= CANVAS_W - 18) {
           moving.x = CANVAS_W - 18 - moving.width;
           if (directionRef.current > 0) {
             directionRef.current = -1;
             ropeSwingsRef.current += 1;
+            waterYRef.current -= WATER_RISE_PER_SWING;
           }
         }
         if (ropeSwingsRef.current >= MAX_ROPE_SWINGS) {
@@ -488,6 +555,21 @@ export default function Home() {
         }
         if (moving.kind === "bomb" && bombFuseRef.current !== null && gameTimeRef.current >= bombFuseRef.current) {
           drop();
+        }
+        const top = blocksRef.current.at(-1);
+        const cameraTarget = top ? Math.max(0, CANVAS_H - 105 - 4 * BLOCK_H - top.y) : 0;
+        if (waterYRef.current + cameraTarget <= 0) {
+          playingRef.current = false;
+          currentRef.current = null;
+          setBombWarning(false);
+          setBombSpeedLabel(null);
+          showCallout("THE SEA TOOK THE TOWER!", 1400);
+          setStatus("over");
+          setBest((currentBest) => {
+            const nextBest = Math.max(currentBest, scoreRef.current);
+            localStorage.setItem("tower-drop-best", String(nextBest));
+            return nextBest;
+          });
         }
       }
       const falling = fallingRef.current;
@@ -528,11 +610,17 @@ export default function Home() {
               hitBlock.width = leftWidth;
             }
             showCallout("BOOM! TOWER CHOPPED!", 1300);
+            setBombSpeedLabel(null);
             createNextBlock(blocksRef.current.at(-1)!, bombNumber, false);
           } else if (falling.y >= falling.targetY) {
             const bombNumber = falling.number;
+            const details = bombSpeedDetails[falling.bombSpeed as 2 | 3 | 4];
+            const nextScore = scoreRef.current + details.bonus;
+            scoreRef.current = nextScore;
+            setScore(nextScore);
             fallingRef.current = null;
-            showCallout("SAFE MISS!", 850);
+            showCallout(`SAFE MISS +${details.bonus}`, 1000);
+            setBombSpeedLabel(null);
             createNextBlock(blocksRef.current.at(-1)!, bombNumber, false);
           }
         } else if (falling.y >= falling.targetY) {
@@ -587,7 +675,10 @@ export default function Home() {
             />
             {callout && <div className="perfect-callout">{callout}</div>}
             {status === "playing" && bombWarning && (
-              <div className="bomb-warning">DON&apos;T LET IT HIT YOUR TOWER!</div>
+              <div className="bomb-warning">
+                <strong>{bombSpeedLabel}</strong>
+                <span>DON&apos;T LET IT HIT YOUR TOWER!</span>
+              </div>
             )}
             {status === "ready" && (
               <div className="game-overlay">
@@ -635,7 +726,9 @@ export default function Home() {
             <li><b>WATCH THE ROPE</b><span>It frays on every swing and snaps automatically on the fifth.</span></li>
             <li><b>PERFECT = +5</b><span>Golden tenth blocks score +10, or +20 when perfect.</span></li>
             <li><b>STEEL STEADIES</b><span>Every twentieth block halves the tower wobble.</span></li>
-            <li><b>AVOID BOMBS</b><span>Black bombs swing twice as fast. Any contact chops away the part of the brick they hit.</span></li>
+            <li><b>AVOID BOMBS</b><span>Bombs randomly swing at 2×, 3× or 4× speed. A safe miss earns +2, +3 or +10.</span></li>
+            <li><b>PERFECT STREAK</b><span>Five perfect drops in a row widen the top block and give you more room.</span></li>
+            <li><b>BEAT THE SEA</b><span>It rises one brick every five swings. Drop quickly or the water will reach the top.</span></li>
           </ul>
           <div className="how-to">
             <span className="mouse-icon" aria-hidden="true">↓</span>

@@ -68,7 +68,9 @@ canvas { width: 100%; height: 100%; display: block; touch-action: manipulation; 
 .game-overlay .submitted { margin: 0 0 14px; color: #7ff0c7; font-weight: 900; }
 .perfect-callout { pointer-events: none; position: absolute; top: 32%; left: 50%; transform: translate(-50%,-50%) rotate(-4deg); padding: 8px 16px; color: var(--ink); background: var(--yellow); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font-weight: 1000; font-size: clamp(22px, 5vw, 42px); animation: perfect .6s ease both; }
 @keyframes perfect { 0% { opacity: 0; transform: translate(-50%,-20%) scale(.6) rotate(-4deg); } 35% { opacity: 1; transform: translate(-50%,-50%) scale(1.08) rotate(-4deg); } 100% { opacity: 0; transform: translate(-50%,-75%) scale(1) rotate(-4deg); } }
-.bomb-warning { pointer-events: none; position: absolute; z-index: 2; top: 17%; left: 50%; width: max-content; max-width: 90%; transform: translateX(-50%) rotate(-2deg); padding: 10px 15px; border: 3px solid #240c13; background: #e8323f; color: white; box-shadow: 5px 5px 0 #240c13; font-size: clamp(13px, 3.2vw, 24px); font-weight: 1000; letter-spacing: .035em; text-align: center; animation: bomb-alert .45s steps(2, end) infinite; }
+.bomb-warning { pointer-events: none; position: absolute; z-index: 2; top: 17%; left: 50%; width: max-content; max-width: 90%; transform: translateX(-50%) rotate(-2deg); padding: 10px 15px; border: 3px solid #240c13; background: #e8323f; color: white; box-shadow: 5px 5px 0 #240c13; font-size: clamp(13px, 3.2vw, 24px); font-weight: 1000; letter-spacing: .035em; text-align: center; animation: bomb-alert .45s steps(2, end) infinite; display: flex; flex-direction: column; gap: 3px; }
+.bomb-warning strong { color: #fff36a; font-size: 1.08em; }
+.bomb-warning span { font-size: .72em; }
 @keyframes bomb-alert { 50% { background: #ffb42c; color: #240c13; transform: translateX(-50%) rotate(2deg) scale(1.025); } }
 
 .game-guide { border: 3px solid var(--ink); background: #fffdf8; box-shadow: 8px 8px 0 var(--ink); }
