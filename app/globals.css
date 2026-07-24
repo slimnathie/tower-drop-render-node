@@ -68,10 +68,16 @@ canvas { width: 100%; height: 100%; display: block; touch-action: manipulation; 
 .game-overlay .submitted { margin: 0 0 14px; color: #7ff0c7; font-weight: 900; }
 .perfect-callout { pointer-events: none; position: absolute; top: 32%; left: 50%; transform: translate(-50%,-50%) rotate(-4deg); padding: 8px 16px; color: var(--ink); background: var(--yellow); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); font-weight: 1000; font-size: clamp(22px, 5vw, 42px); animation: perfect .6s ease both; }
 @keyframes perfect { 0% { opacity: 0; transform: translate(-50%,-20%) scale(.6) rotate(-4deg); } 35% { opacity: 1; transform: translate(-50%,-50%) scale(1.08) rotate(-4deg); } 100% { opacity: 0; transform: translate(-50%,-75%) scale(1) rotate(-4deg); } }
-.freeze-counter { pointer-events: none; position: absolute; z-index: 3; left: 50%; bottom: 18px; transform: translateX(-50%); width: max-content; max-width: 92%; padding: 9px 14px; border: 3px solid #123c70; background: linear-gradient(135deg, #efffff, #83dcf5); color: #123c70; box-shadow: 4px 4px 0 #123c70; font-size: clamp(11px, 2.5vw, 17px); font-weight: 1000; letter-spacing: .055em; text-align: center; }
-.bomb-warning { pointer-events: none; position: absolute; z-index: 2; top: 17%; left: 50%; width: max-content; max-width: 90%; transform: translateX(-50%) rotate(-2deg); padding: 10px 15px; border: 3px solid #240c13; background: #e8323f; color: white; box-shadow: 5px 5px 0 #240c13; font-size: clamp(13px, 3.2vw, 24px); font-weight: 1000; letter-spacing: .035em; text-align: center; animation: bomb-alert .45s steps(2, end) infinite; display: flex; flex-direction: column; gap: 3px; }
-.bomb-warning strong { color: #fff36a; font-size: 1.08em; }
-.bomb-warning span { font-size: .72em; }
+.bomb-warning { pointer-events: none; position: absolute; z-index: 2; top: 17%; left: 50%; width: max-content; max-width: 90%; transform: translateX(-50%) rotate(-2deg); padding: 10px 15px; border: 3px solid #240c13; background: #e8323f; color: white; box-shadow: 5px 5px 0 #240c13; font-size: clamp(13px, 3.2vw, 24px); font-weight: 1000; letter-spacing: .035em; text-align: center; animation: bomb-alert .45s steps(2, end) infinite; }
+.bomb-warning b, .bomb-warning span { display: block; }
+.bomb-warning span { margin-top: 3px; font-size: .55em; letter-spacing: .08em; }
+.ice-badge { pointer-events: none; position: absolute; z-index: 2; top: 9px; left: 50%; transform: translateX(-50%); width: max-content; max-width: 94%; padding: 7px 12px; background: #dffbff; color: #174f78; border: 3px solid #174f78; box-shadow: 3px 3px 0 #174f78; font-size: clamp(10px, 2vw, 15px); font-weight: 1000; letter-spacing: .06em; }
+.level-card { pointer-events: none; position: absolute; z-index: 6; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; background: rgba(15,21,51,.82); animation: level-in 1.35s ease both; }
+.level-card small { color: var(--yellow); font-size: clamp(11px,2vw,16px); font-weight: 950; letter-spacing: .24em; }
+.level-card strong { margin: 8px 0 18px; font-size: clamp(42px,8vw,78px); line-height: .9; letter-spacing: -.06em; text-shadow: 5px 5px 0 #11162d; }
+.level-card div { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; }
+.level-card span { padding: 8px 11px; background: var(--yellow); color: var(--ink); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font-size: clamp(10px,2vw,14px); font-weight: 1000; }
+@keyframes level-in { 0% { opacity: 0; transform: scale(.86); } 16%, 78% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.04); } }
 @keyframes bomb-alert { 50% { background: #ffb42c; color: #240c13; transform: translateX(-50%) rotate(2deg) scale(1.025); } }
 
 .game-guide { border: 3px solid var(--ink); background: #fffdf8; box-shadow: 8px 8px 0 var(--ink); }
