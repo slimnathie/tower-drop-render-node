@@ -13,7 +13,9 @@ const BLOCK_H = 58;
 const BASE_W = 330;
 const BOMB_SIZE = 62;
 const DROP_GAP = BLOCK_H * 3;
-const BOMB_CHANCE = 0.14;
+const BOMB_CHANCE = 0.18;
+const BOMB_MIN_GAP = 4;
+const BOMB_MAX_GAP = 11;
 const BOMB_FUSE_SECONDS = 3;
 const COLOURS = ["#ffc536", "#ff6b45", "#27d3a2", "#5ba7ff", "#b980ff"];
 const LEVELS: Level[] = [
@@ -194,14 +196,39 @@ export default function Home() {
       if (!fallingRef.current) {
         const centre = moving.x + moving.width / 2;
         const fray = ropeFrayRef.current;
-        ctx.strokeStyle = fray >= 4 ? "#b88742" : "#d5a75e";
-        ctx.lineWidth = Math.max(5, 13 - fray * 1.4);
-        ctx.setLineDash(fray ? [Math.max(8, 22 - fray * 3), 3 + fray] : []);
-        ctx.beginPath(); ctx.moveTo(CANVAS_W / 2, 0); ctx.lineTo(centre, movingY); ctx.stroke(); ctx.setLineDash([]);
-        for (let i = 0; i < fray; i++) {
-          ctx.strokeStyle = i % 2 ? "#e0bd78" : "#8e632f"; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(centre - 5 + i * 2, movingY - 18 - i * 4); ctx.lineTo(centre - 14 + i * 6, movingY - 3); ctx.stroke();
+        const ropeTopX = CANVAS_W / 2;
+        const ropeBottomY = movingY;
+        const ropeLength = Math.max(1, ropeBottomY);
+        const ropeXAt = (y: number) => ropeTopX + (centre - ropeTopX) * (y / ropeLength);
+
+        // Keep a strong, solid rope core. Fraying is shown by individual outer
+        // fibres peeling away, rather than turning the whole rope into a dashed line.
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#775027"; ctx.lineWidth = 15;
+        ctx.beginPath(); ctx.moveTo(ropeTopX, 0); ctx.lineTo(centre, ropeBottomY); ctx.stroke();
+        [-4, 0, 4].forEach((offset, strand) => {
+          ctx.strokeStyle = ["#b98543", "#e0b76c", "#94642e"][strand];
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          for (let y = 0; y <= ropeBottomY; y += 9) {
+            const x = ropeXAt(y) + offset + Math.sin(y * .12 + strand * 2.1) * 1.8;
+            if (y === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        });
+        for (let i = 0; i < fray * 3; i++) {
+          const side = i % 2 ? 1 : -1;
+          const startY = ropeBottomY - 18 - (i % 5) * 13;
+          const startX = ropeXAt(startY) + side * 6;
+          const reach = 7 + fray * 2 + (i % 3) * 3;
+          ctx.strokeStyle = i % 3 === 0 ? "#e7c582" : "#a77338";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.quadraticCurveTo(startX + side * reach * .45, startY + 5, startX + side * reach, startY + 12 + (i % 4) * 2);
+          ctx.stroke();
         }
+        ctx.lineCap = "butt";
         ctx.fillStyle = "#ffcf39"; ctx.fillRect(CANVAS_W / 2 - 105, 0, 210, 16);
       } else if (ropeCutAtRef.current !== null && gameTimeRef.current - ropeCutAtRef.current < .42) {
         const centre = moving.x + moving.width / 2;
@@ -234,7 +261,9 @@ export default function Home() {
   }, []);
 
   const createNextBlock = useCallback((previous: Block, number: number, allowBomb = true) => {
-    const shouldBomb = allowBomb && number >= 5 && number - lastBombNumberRef.current >= 4 && Math.random() < BOMB_CHANCE;
+    const blocksSinceBomb = number - lastBombNumberRef.current;
+    const bombIsDue = blocksSinceBomb >= BOMB_MAX_GAP;
+    const shouldBomb = allowBomb && number >= 5 && blocksSinceBomb >= BOMB_MIN_GAP && (bombIsDue || Math.random() < BOMB_CHANCE);
     const kind: BlockKind = shouldBomb ? "bomb" : blockKind(number);
     if (shouldBomb) {
       lastBombNumberRef.current = number;
@@ -273,6 +302,7 @@ export default function Home() {
     waterYRef.current = CANVAS_H + BLOCK_H;
     frozenSwingsRef.current = 0;
     perfectStreakRef.current = 0;
+    lastBombNumberRef.current = -10;
     swingEdgesRef.current = 0;
     ropeFrayRef.current = 0;
     playingRef.current = true;
