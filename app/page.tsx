@@ -31,11 +31,13 @@ const LEVELS: Level[] = [
 
 const blockKind = (number: number): BlockKind =>
   number > 0 && number % 20 === 0 ? "steel" : number > 0 && number % 10 === 0 ? "gold" : "normal";
-const levelForScore = (score: number) => {
+const levelForBricks = (bricks: number) => {
   let index = 0;
-  LEVELS.forEach((level, candidate) => { if (score >= level.threshold) index = candidate; });
+  LEVELS.forEach((level, candidate) => { if (bricks >= level.threshold) index = candidate; });
   return index;
 };
+const swingPixelsPerSecond = (levelIndex: number) =>
+  210 + (LEVELS[levelIndex].swing - 1) * 85;
 const bombLabel = (speed: number) => speed === 2 ? "DOUBLE SPEED" : speed === 3 ? "TRIPLE SPEED" : "INSANE SPEED";
 const bombReward = (speed: number) => speed === 2 ? 2 : speed === 3 ? 3 : 10;
 
@@ -51,6 +53,7 @@ export default function Home() {
   const gameTimeRef = useRef(0);
   const playingRef = useRef(false);
   const scoreRef = useRef(0);
+  const bricksLaidRef = useRef(0);
   const levelRef = useRef(0);
   const bombFuseRef = useRef<number | null>(null);
   const bombSpeedRef = useRef(2);
@@ -63,6 +66,7 @@ export default function Home() {
   const perfectStreakRef = useRef(0);
   const pauseUntilRef = useRef(0);
   const [score, setScore] = useState(0);
+  const [bricksLaid, setBricksLaid] = useState(0);
   const [best, setBest] = useState(0);
   const [level, setLevel] = useState(0);
   const [status, setStatus] = useState<"ready" | "playing" | "over">("ready");
@@ -102,7 +106,13 @@ export default function Home() {
     const nextScore = scoreRef.current + amount;
     scoreRef.current = nextScore;
     setScore(nextScore);
-    const nextLevel = levelForScore(nextScore);
+  }, []);
+
+  const recordBrickLaid = useCallback(() => {
+    const nextBricks = bricksLaidRef.current + 1;
+    bricksLaidRef.current = nextBricks;
+    setBricksLaid(nextBricks);
+    const nextLevel = levelForBricks(nextBricks);
     if (nextLevel !== levelRef.current) {
       levelRef.current = nextLevel;
       setLevel(nextLevel);
@@ -258,6 +268,7 @@ export default function Home() {
     wobbleLevelRef.current = 0;
     gameTimeRef.current = 0;
     scoreRef.current = 0;
+    bricksLaidRef.current = 0;
     levelRef.current = 0;
     waterYRef.current = CANVAS_H + BLOCK_H;
     frozenSwingsRef.current = 0;
@@ -266,7 +277,7 @@ export default function Home() {
     ropeFrayRef.current = 0;
     playingRef.current = true;
     lastRef.current = performance.now();
-    setScore(0); setLevel(0); setIceCount(0); setCallout(null); setBombWarning(null); setStatus("playing");
+    setScore(0); setBricksLaid(0); setLevel(0); setIceCount(0); setCallout(null); setBombWarning(null); setStatus("playing");
     showLevel(0);
   }, [showLevel]);
 
@@ -294,6 +305,7 @@ export default function Home() {
     }
     const landed: Block = { x: landedX, y: previous.y - BLOCK_H, width: landedWidth, colour: moving.colour, kind: moving.kind, number: moving.number };
     blocksRef.current.push(landed);
+    recordBrickLaid();
     const isBonus = moving.kind === "gold" || moving.kind === "steel";
     const earned = isBonus ? (isPerfect ? 20 : 10) : (isPerfect ? 5 : 1);
     updateScore(earned);
@@ -310,14 +322,14 @@ export default function Home() {
       currentRef.current.width = landed.width;
       currentRef.current.x = Math.max(18, Math.min(CANVAS_W - 18 - landed.width, currentRef.current.x - (landed.width - moving.width) / 2));
     }
-  }, [createNextBlock, endGame, showCallout, updateScore]);
+  }, [createNextBlock, endGame, recordBrickLaid, showCallout, updateScore]);
 
   const drop = useCallback(() => {
     if (!playingRef.current || !currentRef.current || fallingRef.current || gameTimeRef.current < pauseUntilRef.current) return;
     const moving = currentRef.current;
     setBombWarning(null);
     ropeCutAtRef.current = gameTimeRef.current;
-    const speed = 210 + (LEVELS[levelRef.current].swing - 1) * 55;
+    const speed = swingPixelsPerSecond(levelRef.current);
     fallingRef.current = {
       ...moving,
       targetY: moving.kind === "bomb" ? blocksRef.current[0].y + BLOCK_H * 2 : blocksRef.current.at(-1)!.y - BLOCK_H,
@@ -349,7 +361,7 @@ export default function Home() {
       gameTimeRef.current += delta;
       const moving = currentRef.current;
       if (playingRef.current && moving && gameTimeRef.current >= pauseUntilRef.current) {
-        const speed = 210 + (LEVELS[levelRef.current].swing - 1) * 55;
+        const speed = swingPixelsPerSecond(levelRef.current);
         const multiplier = moving.kind === "bomb" ? bombSpeedRef.current : 1;
         moving.x += directionRef.current * speed * multiplier * delta;
         if (moving.x <= 18) { moving.x = 18; directionRef.current = 1; registerSwing(); }
@@ -424,7 +436,7 @@ export default function Home() {
       <header className="topbar">
         <a className="brand" href="#" aria-label="Tower Drop home"><span className="brand-mark">TD</span><span>TOWER DROP</span></a>
         <div className="mini-stats" aria-label="Current game statistics">
-          <span>SCORE <b>{score}</b></span><span>LEVEL <b>{level === 9 ? "X" : level + 1}</b></span><span>BEST <b>{Math.max(best, score)}</b></span>
+          <span>SCORE <b>{score}</b></span><span>BRICKS <b>{bricksLaid}</b></span><span>LEVEL <b>{level === 9 ? "X" : level + 1}</b></span><span>BEST <b>{Math.max(best, score)}</b></span>
         </div>
       </header>
       <div className="content-grid">
@@ -438,7 +450,7 @@ export default function Home() {
             {levelCard && status === "playing" && (
               <div className="level-card">
                 <small>NEW CHALLENGE</small><strong>{levelCard.name}</strong>
-                <div><span>WATER +{levelCard.water}</span><span>SWING +{levelCard.swing}</span><span>BRICK +{levelCard.growth}%</span></div>
+                <div><span>WATER {levelCard.water}</span><span>SWING {levelCard.swing}</span><span>BRICK +{levelCard.growth}%</span></div>
               </div>
             )}
             {status === "ready" && (
@@ -463,7 +475,7 @@ export default function Home() {
           <ul className="rules">
             <li><b>ROPE FRAYS</b><span>Drop in time—the rope snaps automatically on its fifth swing.</span></li>
             <li><b>PERFECT STREAK</b><span>Five perfects grow both the tower top and next swinging brick, and freeze the sea.</span></li>
-            <li><b>LEVEL UP</b><span>Water and swing speed increase as your score climbs.</span></li>
+            <li><b>LEVEL UP</b><span>Water and swing speed increase as your bricks laid climbs.</span></li>
             <li><b>DODGE BOMBS</b><span>Safe misses earn bonuses. A hit chops the brick it touches.</span></li>
           </ul>
           <div className="how-to"><span className="mouse-icon">↓</span><div><b>ONE-TAP CONTROL</b><small>Time your drop. Keep it centred.</small></div></div>
